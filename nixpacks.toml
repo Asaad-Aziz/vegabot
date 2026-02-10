@@ -1,9 +1,9 @@
 # Nixpacks configuration for Railway
 [phases.setup]
-nixPkgs = ["nodejs_20", "ffmpeg", "yt-dlp"]
+nixPkgs = ["nodejs_20", "ffmpeg", "yt-dlp", "python3"]
 
 [phases.install]
-cmds = ["npm ci || npm install"]
+cmds = ["npm ci --ignore-scripts || npm install --ignore-scripts"]
 
 [start]
 cmd = "npm start"

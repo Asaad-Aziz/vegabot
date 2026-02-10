@@ -1,5 +1,5 @@
-import { exec } from "yt-dlp-exec";
-import { createWriteStream, existsSync, mkdirSync, unlinkSync } from "fs";
+import { spawn } from "child_process";
+import { existsSync, mkdirSync, unlinkSync, readdirSync } from "fs";
 import { join } from "path";
 import { randomUUID } from "crypto";
 
@@ -46,37 +46,71 @@ export function findVideoUrl(text) {
 }
 
 /**
+ * Run yt-dlp command using system binary
+ */
+function runYtDlp(args) {
+  return new Promise((resolve, reject) => {
+    const process = spawn("yt-dlp", args, {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    process.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+
+    process.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    process.on("close", (code) => {
+      if (code === 0) {
+        resolve(stdout);
+      } else {
+        reject(new Error(stderr || `yt-dlp exited with code ${code}`));
+      }
+    });
+
+    process.on("error", (err) => {
+      reject(new Error(`Failed to run yt-dlp: ${err.message}`));
+    });
+  });
+}
+
+/**
  * Download audio from video URL using yt-dlp
  */
 export async function downloadAudio(url) {
   const outputId = randomUUID();
-  const outputPath = join(TEMP_DIR, `${outputId}.mp3`);
+  const outputTemplate = join(TEMP_DIR, `${outputId}.%(ext)s`);
 
   try {
     console.log(`Downloading audio from: ${url}`);
 
-    await exec(url, {
-      extractAudio: true,
-      audioFormat: "mp3",
-      audioQuality: 0,
-      output: outputPath,
-      noPlaylist: true,
-      // Handle cookies for some platforms
-      cookies: "cookies.txt",
-      // Ignore errors for missing cookies file
-      ignoreerrors: true,
-    });
+    const args = [
+      "-x",                          // Extract audio
+      "--audio-format", "mp3",       // Convert to mp3
+      "--audio-quality", "0",        // Best quality
+      "-o", outputTemplate,          // Output template
+      "--no-playlist",               // Single video only
+      "--no-warnings",               // Suppress warnings
+      url
+    ];
 
-    // Check if file was created
-    if (!existsSync(outputPath)) {
-      // Try alternative output path (yt-dlp sometimes adds extension)
-      const altPath = join(TEMP_DIR, `${outputId}.mp3.mp3`);
-      if (existsSync(altPath)) {
-        return altPath;
-      }
+    await runYtDlp(args);
+
+    // Find the output file (yt-dlp replaces %(ext)s with actual extension)
+    const files = readdirSync(TEMP_DIR);
+    const outputFile = files.find(f => f.startsWith(outputId));
+
+    if (!outputFile) {
       throw new Error("Audio file was not created");
     }
 
+    const outputPath = join(TEMP_DIR, outputFile);
+    console.log(`Downloaded: ${outputPath}`);
     return outputPath;
   } catch (error) {
     console.error("Download error:", error);
