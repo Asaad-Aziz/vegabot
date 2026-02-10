@@ -9,15 +9,18 @@ const client = new Anthropic({
  * Chat with Claude, optionally using web search
  */
 export async function chat(userMessage, useWebSearch = false) {
-  const systemPrompt = `You are ${brandConfig.name}'s AI assistant.
+  const systemPrompt = `${brandConfig.role}
 
-Brand Context:
-${brandConfig.description}
+معلومات المنتج:
+${brandConfig.product.name} - ${brandConfig.product.type}
+المميزات: ${brandConfig.product.features.join("، ")}
+USP: ${brandConfig.product.usp}
 
-Voice & Tone: ${brandConfig.voice.tone}
-Personality traits: ${brandConfig.voice.personality.join(", ")}
+صوت البراند:
+- Tone: ${brandConfig.brandVoice.tone}
+- Personality: ${brandConfig.brandVoice.personality.join("، ")}
 
-Keep responses helpful, concise, and on-brand. If asked about the brand, reference the context above.`;
+${brandConfig.botBehavior}`;
 
   const tools = useWebSearch
     ? [{ type: "web_search_20250305", name: "web_search" }]
@@ -58,47 +61,54 @@ export async function webSearch(query) {
  * Analyze a transcript and rewrite it in brand voice
  */
 export async function analyzeAndRewriteScript(transcript, originalPlatform) {
-  const systemPrompt = `You are an expert script writer and content strategist for ${brandConfig.name}.
+  const pillarsText = brandConfig.contentPillars
+    .map(p => `- ${p.name}: ${p.description} (Goal: ${p.goal})`)
+    .join("\n");
 
-Brand Voice:
-- Tone: ${brandConfig.voice.tone}
-- Personality: ${brandConfig.voice.personality.join(", ")}
-- Words to avoid: ${brandConfig.voice.avoidWords.join(", ")}
-- Preferred vocabulary: ${brandConfig.voice.preferredWords.join(", ")}
+  const systemPrompt = `انت المدير الإبداعي لفريق تسويق ${brandConfig.product.name}.
 
-Target Audience:
-- Demographics: ${brandConfig.audience.demographics}
-- Interests: ${brandConfig.audience.interests.join(", ")}
+معلومات المنتج:
+${brandConfig.product.name} - ${brandConfig.product.type}
+المميزات: ${brandConfig.product.features.join("، ")}
+USP: ${brandConfig.product.usp}
 
-Content Style:
-- Hooks: ${brandConfig.contentStyle.hooks}
-- Structure: ${brandConfig.contentStyle.structure}
-- Length: ${brandConfig.contentStyle.length}
+صوت البراند:
+- Tone: ${brandConfig.brandVoice.tone}
+- Personality: ${brandConfig.brandVoice.personality.join("، ")}
+- أمثلة: ${brandConfig.brandVoice.examples.join(" | ")}
 
-Script Guidelines:
-${brandConfig.scriptGuidelines}`;
+Content Pillars:
+${pillarsText}
 
-  const userPrompt = `I have a transcript from a ${originalPlatform} video. Please:
+Script Structure:
+- Hook: ${brandConfig.scriptStructure.hook}
+- Body: ${brandConfig.scriptStructure.body}
+- CTA: ${brandConfig.scriptStructure.cta}
+- Length (TikTok/Reels): ${brandConfig.scriptStructure.length.tiktokReels}
 
-1. **ANALYZE** the original script structure:
-   - Identify the hook
-   - Break down the main points
-   - Note the pacing and transitions
-   - Identify what makes it engaging (or not)
+تجنب:
+${brandConfig.avoid.join("، ")}`;
 
-2. **REWRITE** the script in our brand voice:
-   - Keep what works from the original
-   - Adapt the messaging to our brand
-   - Make it feel authentic to ${brandConfig.name}
-   - Include timing notes if helpful
+  const userPrompt = `الفريق أرسل لك فيديو من ${originalPlatform}.
 
-Here's the transcript:
+المطلوب:
+1. **تحليل السكربت الأصلي:**
+   - الهوك - شنو استخدموا؟
+   - البنية والـ pacing
+   - ليش الفيديو شغال (أو ما شغال)
+
+2. **اكتب نسخة Vega Power:**
+   - نفس الـ structure اللي شغالة
+   - بصوت براندنا
+   - جاهز للتصوير
+   - قسمه: HOOK | BODY | CTA
+   - اقترح ٢-٣ variations للهوك
+
+الترانسكربت:
 
 ---
 ${transcript}
----
-
-Please provide both the analysis and the rewritten script.`;
+---`;
 
   try {
     const response = await client.messages.create({
